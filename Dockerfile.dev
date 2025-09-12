@@ -1,0 +1,41 @@
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    postgresql-client \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv using pip (more reliable)
+RUN pip install uv
+
+# Copy uv configuration files first for better caching
+COPY pyproject.toml README.md uv.lock ./
+
+# Install Python dependencies using uv
+RUN uv sync --frozen
+
+# Copy project
+COPY . /app/
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+USER app
+
+# Expose port
+EXPOSE 8000
+
+# Default command for development
+CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
