@@ -15,6 +15,13 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     git \
     curl \
+    libgl1-mesa-dri \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    libglu1-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv using pip (more reliable)

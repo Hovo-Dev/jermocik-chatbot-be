@@ -34,6 +34,7 @@ LOCAL_APPS = [
     'accounts',
     'chat',
     'rag',
+    'etl',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -170,9 +171,13 @@ RAG_EMBEDDING_MODEL = os.getenv('RAG_EMBEDDING_MODEL', 'text-embedding-3-small')
 RAG_VECTOR_DIMENSION = int(os.getenv('RAG_VECTOR_DIMENSION', '1536'))
 RAG_CHUNK_SIZE = int(os.getenv('RAG_CHUNK_SIZE', '512'))
 RAG_CHUNK_OVERLAP = int(os.getenv('RAG_CHUNK_OVERLAP', '50'))
-RAG_MAX_CONTEXT_TOKENS = int(os.getenv('RAG_MAX_CONTEXT_TOKENS', '3000'))
+RAG_MAX_CONTEXT_TOKENS = int(os.getenv('RAG_MAX_CONTEXT_TOKENS', '30000'))
 RAG_TOP_K_RESULTS = int(os.getenv('RAG_TOP_K_RESULTS', '5'))
 RAG_SIMILARITY_THRESHOLD = float(os.getenv('RAG_SIMILARITY_THRESHOLD', '0.6'))
+
+# ETL Pipeline Configuration
+VLM_MODEL = os.getenv("VLM_MODEL", "gpt-4o")
+DPI = int(os.getenv("DPI", "200"))
 
 # GraphRAG Configuration (separate from RAG)
 GRAPH_RAG_EMBEDDING_MODEL = os.getenv('GRAPH_RAG_EMBEDDING_MODEL', 'text-embedding-3-large')

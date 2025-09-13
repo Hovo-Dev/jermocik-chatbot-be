@@ -29,17 +29,19 @@ class Document(BaseModel):
 
 class DocumentChunk(BaseModel):
     """Document chunk with embedding for vector similarity search."""
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='chunks')
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='chunks', null=True, blank=True)
     content = models.TextField()
+    summary = models.TextField(default="", blank=True)
     embedding = VectorField(dimensions=settings.RAG_VECTOR_DIMENSION)
     metadata = models.JSONField(default=dict, blank=True)
     
     class Meta:
         db_table = 'rag_document_chunks'
-        unique_together = ['document']
         indexes = [
             models.Index(fields=['document']),
         ]
 
     def __str__(self):
-        return f"{self.document.title} - Content {self.content}"
+        document_title = self.document.title if self.document else "No Document"
+
+        return f"{document_title} - Content {self.content}"

@@ -24,7 +24,18 @@ class RAGEngine:
         else:
             self.client = None
     
-    def create_embeddings(self, text_chunks: List[str]) -> List[List[float]]:
+    def create_embedding(self, text_chunk: str) -> List[float]:
+        """Create embedding for a single text chunk using OpenAI."""
+        if not self.client:
+            raise ValueError("OpenAI client not initialized. Please set OPENAI_API_KEY.")
+        
+        response = self.client.embeddings.create(
+            model=self.embedding_model,
+            input=text_chunk
+        )
+        return response.data[0].embedding
+
+    def create_batch_embeddings(self, text_chunks: List[str]) -> List[List[float]]:
         """Create embeddings for text chunks using OpenAI."""
         if not self.client:
             raise ValueError("OpenAI client not initialized. Please set OPENAI_API_KEY.")
@@ -32,10 +43,8 @@ class RAGEngine:
         embeddings = []
         for chunk in text_chunks:
             try:
-                response = self.client.embeddings.create(
-                    model=self.embedding_model,
-                    input=chunk
-                )
+                response = self.create_embedding(chunk)
+
                 embeddings.append(response.data[0].embedding)
             except Exception as e:
                 print(f"Error generating embedding: {e}")
