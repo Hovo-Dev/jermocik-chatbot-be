@@ -81,8 +81,6 @@ class Migration(migrations.Migration):
                 ("email", models.EmailField(max_length=254, unique=True)),
                 ("first_name", models.CharField(blank=True, max_length=150)),
                 ("last_name", models.CharField(blank=True, max_length=150)),
-                ("phone_number", models.CharField(blank=True, max_length=20)),
-                ("is_verified", models.BooleanField(default=False)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 (

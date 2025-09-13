@@ -112,14 +112,14 @@ def format_context_chunks(retriever_result, top_k: int) -> None:
                     print(f" • {entity_a.get('name')}  -[{edge['type']}]->  {entity_b.get('name')}  {props_str}")
 
 
-class Neo4jClient:
-    """Neo4j client for graph database operations and RAG queries."""
-    
+class GraphRAGClient:
+    """Neo4j client for graph database operations and GraphRAG queries."""
+
     def __init__(self):
         """Initialize Neo4j client with configuration."""
         self._load_config()
         self._initialize_components()
-    
+
     def _load_config(self) -> None:
         """Load configuration from environment variables."""
         # Neo4j Configuration
@@ -135,7 +135,7 @@ class Neo4jClient:
         
         # Index names
         self.vector_index = "chunk_embeddings"
-    
+
     def _initialize_components(self) -> None:
         """Initialize Neo4j driver and AI components."""
         # Initialize driver
@@ -157,31 +157,38 @@ class Neo4jClient:
             model_params={"temperature": 0}
         )
         self.embedder = OpenAIEmbeddings(model=self.embed_model)
-    
+
     def test_connection(self) -> bool:
         """Test Neo4j database connection."""
         try:
             with self.driver.session(database=self.neo4j_database) as session:
                 result = session.run("RETURN 1 as test")
                 record = result.single()
+
                 log_success(f"Neo4j connection successful: {record['test']}")
+
                 return True
         except Exception as e:
             log_error(f"Neo4j connection failed: {e}")
             return False
-    
+
+    def close(self) -> None:
+        """Close the Neo4j driver."""
+        self.driver.close()
+        log_info("Neo4j connection closed")
+
     def clear_database(self) -> None:
         """Clear all nodes and relationships in the database."""
         with self.driver.session(database=self.neo4j_database) as session:
             session.run("MATCH (n) DETACH DELETE n")
             log_info("Database cleared")
-    
+
     def delete_all_data(self) -> None:
         """Delete all data from Neo4j database."""
         with self.driver.session(database=self.neo4j_database) as session:
             session.run("MATCH (n) DETACH DELETE n")
             log_info("All data deleted from Neo4j database")
-    
+
     async def ingest_documents(self, pdf_paths: List[str]) -> None:
         """Ingest PDF documents using Knowledge Graph Builder."""
         if not pdf_paths:
@@ -208,7 +215,7 @@ class Neo4jClient:
                     log_error(f"Failed to ingest {abs_path}: {e}")
             else:
                 log_warning(f"File not found: {pdf_path}")
-    
+
     def create_indexes(self) -> None:
         """Create vector and full-text indexes."""
         try:
@@ -298,52 +305,46 @@ class Neo4jClient:
             error_msg = f"RAG query failed: {e}"
             log_error(error_msg)
             return error_msg
+
+
+# async def main():
+#     """Main function demonstrating the Neo4j working script."""
+#     log_info("Starting Neo4j Working Script")
+#     log_separator(50)
     
-    def close(self) -> None:
-        """Close the Neo4j driver."""
-        self.driver.close()
-        log_info("Neo4j connection closed")
-
-
-async def main():
-    """Main function demonstrating the Neo4j working script."""
-    log_info("Starting Neo4j Working Script")
-    log_separator(50)
+#     # Initialize the client
+#     client = Neo4jClient()
     
-    # Initialize the client
-    client = Neo4jClient()
-    
-    # Test connection
-    if not client.test_connection():
-        return
+#     # Test connection
+#     if not client.test_connection():
+#         return
 
-    # Define PDF files for ingestion
-    pdf_files = [
-        "prompts/pdfs/2022_Q3_Earnings_Transcript.pdf",
-        "prompts/pdfs/2023-q4-earnings-transcript.pdf",
-        "prompts/pdfs/2023-q2-earnings-transcript.pdf"
-    ]
+#     # Define PDF files for ingestion
+#     pdf_files = [
+#         "prompts/pdfs/2022_Q3_Earnings_Transcript.pdf",
+#         "prompts/pdfs/2023-q4-earnings-transcript.pdf",
+#         "prompts/pdfs/2023-q2-earnings-transcript.pdf"
+#     ]
 
-    # Uncomment to clear data and ingest documents
-    # client.delete_all_data()
-    # await client.ingest_documents(pdf_files)
-    # client.create_indexes()
+#     # Uncomment to clear data and ingest documents
+#     # client.delete_all_data()
+#     # await client.ingest_documents(pdf_files)
+#     # client.create_indexes()
 
-    # RAG-based questions
-    questions = [
-        "where was lamda demonstrated?",
-        # "Which hardware partners were highlighted and for what integrations?",
-        # "Summarize the AI in Ads community across the three quarters."
-    ]
+#     # RAG-based questions
+#     questions = [
+#         "where was lamda demonstrated?",
+#         # "Which hardware partners were highlighted and for what integrations?",
+#         # "Summarize the AI in Ads community across the three quarters."
+#     ]
 
-    for question in questions:
-        print(f"\n❓ Question: {question}")
-        answer = client.ask_question(question)
-        print(f"\n💡 Final Answer: {answer}")
+#     for question in questions:
+#         print(f"\n❓ Question: {question}")
+#         answer = client.ask_question(question)
+#         print(f"\n💡 Final Answer: {answer}")
 
-    log_success("Script completed successfully!")
-    client.close()
+#     log_success("Script completed successfully!")
+#     client.close()
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())

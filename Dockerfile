@@ -23,8 +23,8 @@ RUN pip install uv
 # Copy uv configuration files first for better caching
 COPY pyproject.toml README.md uv.lock ./
 
-# Install Python dependencies using uv
-RUN uv sync --frozen
+# Install Python dependencies using uv (production with psycopg2 source)
+RUN uv sync --frozen --extra prod
 
 # Copy project
 COPY . /app/
