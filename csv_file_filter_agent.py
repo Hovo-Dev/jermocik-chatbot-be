@@ -180,7 +180,7 @@ Return only the relevant CSV file basenames as a JSON array."""
 
         return response["output"]
 
-    def run(self, csv_directory: str = "pdf_etl_pipeline/results/csv"):
+    def run(self, user_query, csv_directory: str = "pdf_etl_pipeline/results/csv"):
         """
         Run the CSV agent with predefined test queries.
         
@@ -188,26 +188,11 @@ Return only the relevant CSV file basenames as a JSON array."""
             csv_directory: Directory containing CSV files to analyze
         """
         # Test queries
-        test_queries = [
-            "What were the Q4 2024 revenue numbers?",
-            "Show me the balance sheet information",
-            "What are the cash flow details?",
-            "Tell me about segment operating results",
-            "What was the free cash flow?"
-        ]
 
-        print("CSV File Filter Agent - Test Results")
-        print("=" * 50)
+        relevant_files = self.filter_csv_files_from_directory(user_query, csv_directory)
+        result = self.analyze_csv_files_using_langchain(user_query, relevant_files)
 
-        for query in test_queries:
-            print(f"\nQuery: {query}")
-
-            relevant_files = self.filter_csv_files_from_directory(query, csv_directory)
-            print(f"relevant_files\n{relevant_files}\n\n\n\n\n")
-            result = self.analyze_csv_files_using_langchain(query, relevant_files)
-
-            print(f"Response:: {result}")
-
+        return result
 
 # Example usage and testing
 if __name__ == "__main__":
