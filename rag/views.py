@@ -1,17 +1,16 @@
-import asyncio
 from pathlib import Path
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny
 
 from core.responses import APIResponse
-from core.mixins import AuthMixin
 from etl.processors.pipeline import ETLPipeline
 from rag.graphrag_client import GraphRAGClient
 
-class DocumentIngestView(AuthMixin, APIView):
+class DocumentIngestView(APIView):
     """API view for uploading and processing PDF files through ETL pipeline."""
-    parser_classes = [MultiPartParser, FormParser]
+    authentication_classes = []
+    permission_classes = [AllowAny]
     
     def post(self, request):
         """Upload and process PDF files through ETL pipeline."""
@@ -40,6 +39,8 @@ class DocumentIngestView(AuthMixin, APIView):
 
 class GraphRAGSetupView(APIView):
     """API view for testing GraphRAG connection, ingesting documents, and creating indexes."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
     
     def post(self, request):
         """Test connection, ingest documents, and create indexes."""
