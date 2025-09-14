@@ -31,7 +31,7 @@ RUN pip install uv
 COPY pyproject.toml README.md uv.lock ./
 
 # Install Python dependencies using uv (development with psycopg2-binary)
-RUN uv sync --frozen --extra dev
+RUN uv sync --extra dev
 
 # Copy project
 COPY . /app/

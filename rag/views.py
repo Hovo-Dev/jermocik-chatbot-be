@@ -7,7 +7,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from core.responses import APIResponse
 from core.mixins import AuthMixin
 from etl.processors.pipeline import ETLPipeline
-from .graphrag_client import GraphRAGClient
+from rag.graphrag_client import GraphRAGClient
 
 class DocumentIngestView(AuthMixin, APIView):
     """API view for uploading and processing PDF files through ETL pipeline."""
@@ -18,7 +18,7 @@ class DocumentIngestView(AuthMixin, APIView):
         try:
             # Create etl/input directory if it doesn't exist
             input_dir = Path('etl/input')
-            output_dir = Path('etl/output')
+            output_dir = Path('etl/results')
 
             # Initialize pipeline with the saved files directory
             pipeline = ETLPipeline(input_dir, output_dir)
@@ -67,13 +67,8 @@ class GraphRAGSetupView(APIView):
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Ingest documents asynchronously
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(client.ingest_documents(pdf_files))
-            finally:
-                loop.close()
+            # Ingest documents using synchronous wrapper
+            client.ingest_documents_sync(pdf_files)
             
             # Create indexes
             client.create_indexes()

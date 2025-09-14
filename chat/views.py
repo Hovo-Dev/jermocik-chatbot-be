@@ -247,18 +247,18 @@ class MessageCreateView(AuthMixin, generics.CreateAPIView):
 
             # Create the initial user message
             self.perform_create(serializer)
-            user_message = serializer.instance
+            user_message = serializer.validated_data['content']
 
             # Process message with LLM using service functions
-            llm_result = process_message_with_llm(
-                user_message=user_message.content,
-                conversation=conversation,
+            llm_response = process_message_with_llm(
+                conversation=conversation, 
+                user_message=user_message
             )
 
             # Create assistant message with LLM response
             assistant_message = Message.objects.create(
                 conversation=conversation,
-                content=llm_result['response'],
+                content=llm_response,
                 message_type='assistant'
             )
 

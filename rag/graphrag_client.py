@@ -15,6 +15,9 @@ import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Neo4j imports
 from neo4j import GraphDatabase
@@ -129,7 +132,7 @@ class GraphRAGClient:
         self.neo4j_database = os.getenv("NEO4J_DATABASE", "neo4j")
         
         # OpenAI Configuration
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.embed_model = os.getenv("EMBED_MODEL", "text-embedding-3-large")
         self.embed_dim = int(os.getenv("EMBED_DIM", "3072"))
         
@@ -201,7 +204,6 @@ class GraphRAGClient:
             embedder=self.embedder,
             from_pdf=True,
             neo4j_database=self.neo4j_database,
-            schema="FREE"
         )
         
         for pdf_path in pdf_paths:
@@ -215,6 +217,42 @@ class GraphRAGClient:
                     log_error(f"Failed to ingest {abs_path}: {e}")
             else:
                 log_warning(f"File not found: {pdf_path}")
+
+    def ingest_documents_sync(self, pdf_paths: List[str]) -> None:
+        """Synchronous wrapper for document ingestion."""
+        try:
+            # Try to get existing event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we need to run in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._ingest_documents_in_thread, pdf_paths)
+                        future.result()
+                else:
+                    # No running loop, we can use run_until_complete
+                    loop.run_until_complete(self.ingest_documents(pdf_paths))
+            except RuntimeError:
+                # No event loop exists, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.ingest_documents(pdf_paths))
+                finally:
+                    loop.close()
+        except Exception as e:
+            log_error(f"Document ingestion failed: {e}")
+            raise
+
+    def _ingest_documents_in_thread(self, pdf_paths: List[str]) -> None:
+        """Helper method to run document ingestion in a separate thread."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self.ingest_documents(pdf_paths))
+        finally:
+            loop.close()
 
     def create_indexes(self) -> None:
         """Create vector and full-text indexes."""
@@ -279,30 +317,49 @@ class GraphRAGClient:
     
     def ask_question(self, question: str, top_k: int = 5) -> str:
         """Ask a question using RAG and display detailed results."""
+        logging.info(f"GraphRAGClient ask_question: {question}")
         try:
-            retriever = VectorCypherRetriever(
-                driver=self.driver,
-                index_name=self.vector_index,
-                retrieval_query=self._build_retrieval_query(),
-                embedder=self.embedder,
-                result_formatter=self._format_retriever_result,
-                neo4j_database=self.neo4j_database,
-            )
-
-            rag = GraphRAG(retriever=retriever, llm=self.llm)
-            result = rag.search(
-                query_text=question, 
-                retriever_config={"top_k": top_k}, 
-                return_context=True
-            )
-
-            # Display formatted results
-            format_rag_answer(result.answer)
-            format_context_chunks(result.retriever_result, top_k)
-
-            return result.answer
+            # Ensure we have a proper event loop for any async operations
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, run in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._ask_question_sync, question, top_k)
+                        return future.result()
+                else:
+                    # No running loop, we can run directly
+                    return self._ask_question_sync(question, top_k)
+            except RuntimeError:
+                # No event loop exists, run directly
+                return self._ask_question_sync(question, top_k)
         except Exception as e:
             error_msg = f"RAG query failed: {e}"
             log_error(error_msg)
             return error_msg
+
+    def _ask_question_sync(self, question: str, top_k: int = 5) -> str:
+        """Synchronous implementation of ask_question."""
+        retriever = VectorCypherRetriever(
+            driver=self.driver,
+            index_name=self.vector_index,
+            retrieval_query=self._build_retrieval_query(),
+            embedder=self.embedder,
+            result_formatter=self._format_retriever_result,
+            neo4j_database=self.neo4j_database,
+        )
+
+        rag = GraphRAG(retriever=retriever, llm=self.llm)
+        result = rag.search(
+            query_text=question, 
+            retriever_config={"top_k": top_k}, 
+            return_context=True
+        )
+
+        # Display formatted results
+        format_rag_answer(result.answer)
+        format_context_chunks(result.retriever_result, top_k)
+
+        return result.answer
 

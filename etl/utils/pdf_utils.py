@@ -23,10 +23,6 @@ def extract_page_text(doc: fitz.Document, page_index: int, max_chars: int = 1500
     return text[:max_chars]
 
 
-def has_visual_content(page_data: Dict[str, Any]) -> bool:
-    """Check if page has tables or figures based on layout data."""
-    return bool(page_data.get("tables") or page_data.get("figures"))
-
 
 def discover_pdfs(input_dir: Path) -> List[Path]:
     """Discover all PDF files in input directory."""

@@ -4,9 +4,13 @@ This module contains functions for chat history retrieval, context processing, a
 """
 
 from typing import List, Dict, Any, Optional
+import logging
 
 from .models import Conversation, Message
 from responder.agents import run_responder
+from rag.rag_engine import RAGEngine
+
+logger = logging.getLogger(__name__)
 
 def get_chat_history_for_llm(conversation: Conversation, max_limit: int = 20) -> List[Dict[str, Any]]:
     """Get recent chat history for LLM context."""
@@ -32,11 +36,26 @@ def get_chat_history_for_llm(conversation: Conversation, max_limit: int = 20) ->
 
 def process_message_with_llm(
     conversation: Conversation,
+    user_message: str,
     max_history: int = 20
 ) -> Dict[str, Any]:
     """Complete message processing pipeline."""
-    chat_history = get_chat_history_for_llm(conversation, max_history)
 
-    llm_response = run_responder(chat_history)
+    try:
+        # Get recent chat history
+        chat_history = get_chat_history_for_llm(conversation, max_history)
+        
+        rag_engine = RAGEngine()
+        retrieved_context = rag_engine.retrieve_and_build_context(user_message)
+        print(f"[CHAT] Retrieved context: {retrieved_context}")
+        print(f"[CHAT] User message: {user_message}")
 
-    return llm_response
+        # Run responder agent
+        llm_response = run_responder(chat_history, retrieved_context)
+
+        return llm_response
+    except Exception as err:
+        logger.error(f"Error processing message with LLM: {err}")
+
+        # Return fallback response
+        return "I'm sorry, I don't have enough information to answer that at the moment."

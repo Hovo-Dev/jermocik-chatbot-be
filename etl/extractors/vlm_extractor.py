@@ -2,12 +2,12 @@
 
 import json
 import logging
+import os
 from typing import Dict, Any
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from tenacity import retry, wait_random_exponential, stop_after_attempt, retry_if_exception_type
-
-from django.conf import settings
 
 from etl.utils.pdf_utils import b64_png_bytes
 
@@ -16,7 +16,8 @@ class VLMExtractor:
     """Extract structured content from PDF pages using Vision Language Models."""
     
     def __init__(self, model: str, logger: logging.Logger):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        load_dotenv()
+        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = model
         self.logger = logger
     

@@ -20,6 +20,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from langchain_experimental.agents import create_csv_agent
 from langchain_openai import ChatOpenAI
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables
 load_dotenv()
@@ -63,7 +66,7 @@ class CSVAgent:
 You will be provided with:
 1. A user query/question
 2. A list of CSV file basenames
-
+ 
 Your job is to analyze the file names and determine which ones are likely to contain data relevant to answering the user's question.
 
 Rules:
@@ -150,11 +153,11 @@ Return only the relevant CSV file basenames as a JSON array."""
         # Get all CSV files in the directory (basenames only for filtering)
         csv_basenames = [f for f in os.listdir(csv_directory) if f.endswith('.csv')]
         
-        # Filter using basenames
-        filtered_basenames = self.filter_csv_files(user_query, csv_basenames)
+        # TODO: Uncomment this when the filter_csv_files method is implemented properly
+        # filtered_basenames = self.filter_csv_files(user_query, csv_basenames)
         
         # Convert to full paths
-        filtered_full_paths = [os.path.join(csv_directory, basename) for basename in filtered_basenames]
+        filtered_full_paths = [os.path.join(csv_directory, basename) for basename in csv_basenames]
         
         return filtered_full_paths
 
@@ -180,24 +183,18 @@ Return only the relevant CSV file basenames as a JSON array."""
 
         return response["output"]
 
-    def run(self, user_query, csv_directory: str = "pdf_etl_pipeline/results/csv"):
+    def run(self, user_query, csv_directory: str = "etl/results/csv"):
         """
         Run the CSV agent with predefined test queries.
         
         Args:
             csv_directory: Directory containing CSV files to analyze
         """
-        # Test queries
 
         relevant_files = self.filter_csv_files_from_directory(user_query, csv_directory)
+
+        logging.info(f"Relevant files: {relevant_files}")
+
         result = self.analyze_csv_files_using_langchain(user_query, relevant_files)
 
         return result
-
-# Example usage and testing
-if __name__ == "__main__":
-    # Initialize the agent
-    agent = CSVAgent()
-    
-    # Run the agent with default settings
-    agent.run()

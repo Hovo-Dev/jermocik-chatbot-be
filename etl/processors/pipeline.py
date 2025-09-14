@@ -7,14 +7,12 @@ from typing import List, Dict, Any
 import pandas as pd
 import fitz
 
-from etl.extractors.pdf_detector import PDFDetector
 from etl.extractors.vlm_extractor import VLMExtractor
-from etl.utils.pdf_utils import discover_pdfs, page_to_png_bytes, extract_page_text, has_visual_content
+from etl.utils.pdf_utils import discover_pdfs, page_to_png_bytes, extract_page_text
 from etl.utils.file_utils import ensure_dir, save_json
 from etl.utils.logging_utils import setup_logger
 from rag.rag_engine import RAGEngine
 from rag.models import DocumentChunk
-from django.conf import settings
 
 class ETLPipeline:
     """Main ETL pipeline for processing PDF documents to structured JSON."""
@@ -23,8 +21,8 @@ class ETLPipeline:
         self,
         input_dir: Path,
         output_dir: Path,
-        vlm_model: str = settings.VLM_MODEL,
-        dpi: int = settings.DPI,
+        vlm_model: str = "gpt-4o",
+        dpi: int = 200,
         log_level: str = "INFO"
     ):
         self.input_dir = Path(input_dir)
@@ -37,7 +35,6 @@ class ETLPipeline:
         self.logger = setup_logger("pdf_etl", self.output_dir, log_level)
         
         # Initialize components
-        self.pdf_detector = PDFDetector(self.logger)
         self.vlm_extractor = VLMExtractor(vlm_model, self.logger)
         self.rag_engine = RAGEngine()
     
@@ -53,7 +50,7 @@ class ETLPipeline:
             self.logger.warning("No PDF files found")
             return self.output_dir / "manifest.json"
         
-        manifest = self._process_pdfs_with_detection(pdf_files)
+        manifest = self._process_pdfs_directly(pdf_files)
         self.logger.debug(manifest)
         # Save final manifest
         manifest_path = self.output_dir / "manifest.json"
@@ -92,13 +89,11 @@ class ETLPipeline:
                 except Exception as e:
                     self.logger.error(f"Failed to convert table to CSV: page {idx+1}, table {jdx+1}: {e}")
 
-        # Save manifest for debug only
         save_json(manifest, manifest_path)
-
+        
         self.logger.info(f"Pipeline completed. Manifest: {manifest_path}")
-
         return manifest_path
-
+    
     def _discover_pdfs(self) -> List[Path]:
         """Discover all PDF files in input directory."""
         self.logger.info("Discovering PDF files...")
@@ -106,51 +101,58 @@ class ETLPipeline:
         self.logger.info(f"Found {len(pdf_files)} PDF files")
         return pdf_files
     
-    def _process_pdfs_with_detection(self, pdf_files: List[Path]) -> Dict[str, Any]:
-        """Process PDFs using LayoutParser detection, only VLM process pages with tables/figures."""
+    def _process_pdfs_directly(self, pdf_files: List[Path]) -> Dict[str, Any]:
+        """Process all pages of PDFs directly with VLM without filtering."""
         manifest = {"pages": []}
         
         for pdf_path in pdf_files:
             self.logger.info(f"Processing PDF: {pdf_path.name}")
             
-            # Analyze PDF structure using LayoutParser
-            pdf_analysis = self.pdf_detector.analyze_pdf(pdf_path)
-            
-            if "error" in pdf_analysis:
-                self.logger.warning(f"Skipping PDF with error: {pdf_path}")
-                continue
-
-            # Only process pages that were detected to have tables/figures
             try:
                 doc = fitz.open(pdf_path)
+                
+                # Process all pages without filtering
+                for page_idx in range(doc.page_count):
+                    page_data = self._process_page_with_vlm(doc, pdf_path, page_idx)
 
-                for page_entry in pdf_analysis.get("pages", []):
-                    page_data = self._process_page_with_vlm(doc, pdf_path, page_entry)
+                    self.logger.info(f"Page data: {page_data}")
 
                     # Chart descriptions to ingest document
-                    chart_descriptions = page_data['chart_descriptions']
+                    chart_descriptions = page_data.get('chart_descriptions', []) or []
+                    self.logger.info(f"Chart descriptions: {chart_descriptions}")
 
-                    chunks = []
+                    # Collect all chunks in a flat array, do not use bulk_create inside this loop
+                    all_chunks = []
+                    for chart_description in chart_descriptions:
+                        self.logger.info(f"Chart description: {chart_description}")
 
-                    if chart_descriptions:
-                        # The main chart description
-                        key_points = chart_descriptions.get('key_points', [])
-                        summary = chart_descriptions.get('summary', "")
+                        if chart_description:
+                            # The main chart description
+                            key_points = chart_description.get('key_points', [])
+                            self.logger.info(f"Key points: {key_points}")
+                            summary = chart_description.get('summary', "")
+                            self.logger.info(f"Summary: {summary}")
 
-                        # Join chart descriptions into a single text chunk to consolidate into a single embedding
-                        text_chunk = "\n".join(key_points)
+                            # Join chart descriptions into a single text chunk to consolidate into a single embedding
+                            text_chunk = "\n".join(key_points)
 
-                        embedding = self.rag_engine.create_embedding(text_chunk)
+                            self.logger.info(f"Text chunk: {text_chunk}")
 
-                        chunk = DocumentChunk(
-                            content=text_chunk,
-                            summary=summary,
-                            embedding=embedding,
-                        )
-                        chunks.append(chunk)
+                            embedding = self.rag_engine.create_embedding(text_chunk)
 
-                    # Save many chunks into DB
-                    DocumentChunk.objects.bulk_create(chunks)
+                            self.logger.info(f"Embedding: {embedding}")
+
+                            chunk = DocumentChunk(
+                                content=text_chunk,
+                                summary=summary,
+                                embedding=embedding,
+                            )
+                            all_chunks.append(chunk)
+
+                    # Save all collected chunks into PGVector DB after the loop
+                    if len(all_chunks) > 0:
+                        self.logger.info(f"Saving {len(all_chunks)} chunks into PGVector DB")
+                        DocumentChunk.objects.bulk_create(all_chunks)
 
                     if page_data:
                         manifest["pages"].append(page_data)
@@ -162,11 +164,10 @@ class ETLPipeline:
         
         return manifest
     
-    def _process_page_with_vlm(self, doc: fitz.Document, pdf_path: Path, page_entry: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a single PDF page that was detected to have tables/figures."""
-        page_num = page_entry["page_number"]
+    def _process_page_with_vlm(self, doc: fitz.Document, pdf_path: Path, page_num: int) -> Dict[str, Any]:
+        """Process a single PDF page with VLM."""
         
-        self.logger.info(f"    VLM processing page {page_num} (detected: {len(page_entry.get('tables', []))} tables, {len(page_entry.get('figures', []))} figures)")
+        self.logger.info(f"    VLM processing page {page_num + 1}")
         
         try:
             # Extract page content
