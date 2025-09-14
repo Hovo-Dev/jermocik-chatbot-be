@@ -15,6 +15,13 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     git \
     curl \
+    libgl1-mesa-dri \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    libglu1-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv using pip (more reliable)
@@ -23,8 +30,8 @@ RUN pip install uv
 # Copy uv configuration files first for better caching
 COPY pyproject.toml README.md uv.lock ./
 
-# Install Python dependencies using uv
-RUN uv sync --frozen
+# Install Python dependencies using uv (development with psycopg2-binary)
+RUN uv sync --extra dev
 
 # Copy project
 COPY . /app/
