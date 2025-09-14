@@ -1,6 +1,6 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth import authenticate
 from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
@@ -17,10 +17,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 
-            'phone_number', 'is_verified', 'created_at', 'updated_at',
-            'password', 'password_confirm'
+            'created_at', 'updated_at', 'password', 'password_confirm'
         ]
-        read_only_fields = ['id', 'is_verified', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {
             'password': {'write_only': True},
             'password_confirm': {'write_only': True},
@@ -52,31 +51,30 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 
-            'full_name', 'phone_number', 'is_verified', 'created_at'
+            'full_name', 'created_at'
         ]
-        read_only_fields = ['id', 'username', 'email', 'is_verified', 'created_at']
+        read_only_fields = ['id', 'username', 'email', 'created_at']
 
-class LoginSerializer(serializers.Serializer):
-    """Serializer for user login."""
-    
-    email = serializers.EmailField()
-    password = serializers.CharField()
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Serializer for customizing the JWT token response.
+    """
+    @classmethod
+    def get_token(cls, user):
+        """
+        Add custom claims to the token.
+        """
+        token = super().get_token(user)
+        token['username'] = user.username
+        token['email'] = user.email
+
+        return token
 
     def validate(self, attrs):
-        """Validate user credentials."""
-        email = attrs.get('email')
-        password = attrs.get('password')
+        """
+        Customize the response to include user details.
+        """
+        data = super().validate(attrs)
+        data['user'] = UserProfileSerializer(self.user).data
 
-        if email and password:
-            user = authenticate(username=email, password=password)
-
-            if not user:
-                raise serializers.ValidationError('Invalid credentials.')
-            if not user.is_active:
-                raise serializers.ValidationError('User account is disabled.')
-
-            attrs['user'] = user
-        else:
-            raise serializers.ValidationError('Must include email and password.')
-
-        return attrs
+        return data

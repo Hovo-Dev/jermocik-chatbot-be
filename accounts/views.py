@@ -1,28 +1,39 @@
 from rest_framework import generics, status
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.contrib.auth import login
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenBlacklistView, TokenRefreshView
 
 from .models import User
-from .serializers import UserSerializer, UserProfileSerializer, LoginSerializer
+from .serializers import UserSerializer, UserProfileSerializer, CustomTokenObtainPairSerializer
 from core.responses import APIResponse
+from core.mixins import AuthMixin
 
 class RegisterView(generics.CreateAPIView):
-    """API endpoint for user registration."""
+    """
+    POST /api/v1/accounts/register/
+    Register a new user account.
+    """
     
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        """Register a new user."""
+        """Register a new user and return JWT tokens."""
         serializer = self.get_serializer(data=request.data)
 
         if serializer.is_valid():
             user = serializer.save()
 
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+
             return APIResponse.created(
-                data=UserProfileSerializer(user).data,
+                data={
+                    "user": UserProfileSerializer(user).data,
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                },
                 message="User registered successfully."
             )
 
@@ -33,48 +44,35 @@ class RegisterView(generics.CreateAPIView):
             status_code=status.HTTP_400_BAD_REQUEST
         )
 
-class LoginView(APIView):
-    """API endpoint for user login."""
-    
-    permission_classes = [AllowAny]
+class LoginTokenObtainPairView(TokenObtainPairView):
+    """
+    POST /api/v1/accounts/login/
+    Returns JWT access and refresh tokens upon successful login.
+    """
+    serializer_class = CustomTokenObtainPairSerializer
 
-    def post(self, request, *args, **kwargs):
-        """Authenticate user and create session."""
-        serializer = LoginSerializer(data=request.data)
+class LogoutView(TokenBlacklistView):
+    """
+    POST /api/v1/accounts/logout/
+    Logout the current user and blacklist the refresh token.
+    """
+    pass
 
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
+class RefreshTokenView(TokenRefreshView):
+    """
+    POST /api/v1/accounts/refresh-token/
+    Refresh the access token using a valid refresh token.
+    """
+    pass
 
-            login(request, user)
-
-            return APIResponse.success(
-                data=UserProfileSerializer(user).data,
-                message="Login successful."
-            )
-
-        return APIResponse.error(
-            message="Login failed.",
-            errors=serializer.errors,
-            error_code="LOGIN_FAILED",
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
-
-class LogoutView(APIView):
-    """API endpoint for user logout."""
-    
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        """Logout the current user."""
-        # In a simple implementation, we just return success
-        # In production, you might want to invalidate tokens or sessions
-        return APIResponse.success(message="Logout successful.")
-
-class ProfileView(generics.RetrieveUpdateAPIView):
-    """API endpoint for user profile management."""
+class ProfileView(AuthMixin, generics.RetrieveUpdateAPIView):
+    """
+    GET /api/v1/accounts/profile/
+    PATCH /api/v1/accounts/profile/
+    Retrieve or update the authenticated user's profile.
+    """
     
     serializer_class = UserProfileSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         """Return the current user."""

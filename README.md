@@ -1,14 +1,13 @@
 # Django API Boilerplate
 
-A clean, production-ready Django REST API boilerplate with Docker support, PostgreSQL, Redis, and Celery for background tasks. Built with `uv` for fast dependency management.
+A clean, production-ready Django REST API boilerplate with Docker support and PostgreSQL. Built with `uv` for fast dependency management.
 
 ## Features
 
 - **Django 5.1** with Django REST Framework
 - **uv** for fast Python package management
 - **Docker & Docker Compose** for easy deployment
-- **PostgreSQL** database with Redis for caching
-- **Celery** for background task processing
+- **PostgreSQL** database
 - **Custom User Model** with email authentication
 - **API-only** - no templates or HTML rendering
 - **Simple API responses** and error handling
@@ -24,7 +23,6 @@ django_api_project/
 │   ├── urls.py                  # URL configuration
 │   ├── wsgi.py                  # WSGI configuration
 │   ├── asgi.py                  # ASGI configuration
-│   └── celery.py                # Celery configuration
 ├── core/                        # Core utilities
 │   ├── exceptions.py            # Exception handling
 │   ├── responses.py             # Simple API responses
@@ -148,9 +146,6 @@ DB_PASSWORD=password
 DB_HOST=localhost
 DB_PORT=5432
 
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ```
 
 ## Adding New Apps

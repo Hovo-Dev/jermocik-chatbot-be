@@ -15,6 +15,9 @@ import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Neo4j imports
 from neo4j import GraphDatabase
@@ -112,14 +115,14 @@ def format_context_chunks(retriever_result, top_k: int) -> None:
                     print(f" • {entity_a.get('name')}  -[{edge['type']}]->  {entity_b.get('name')}  {props_str}")
 
 
-class Neo4jClient:
-    """Neo4j client for graph database operations and RAG queries."""
-    
+class GraphRAGClient:
+    """Neo4j client for graph database operations and GraphRAG queries."""
+
     def __init__(self):
         """Initialize Neo4j client with configuration."""
         self._load_config()
         self._initialize_components()
-    
+
     def _load_config(self) -> None:
         """Load configuration from environment variables."""
         # Neo4j Configuration
@@ -129,13 +132,13 @@ class Neo4jClient:
         self.neo4j_database = os.getenv("NEO4J_DATABASE", "neo4j")
         
         # OpenAI Configuration
-        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.embed_model = os.getenv("EMBED_MODEL", "text-embedding-3-large")
         self.embed_dim = int(os.getenv("EMBED_DIM", "3072"))
         
         # Index names
         self.vector_index = "chunk_embeddings"
-    
+
     def _initialize_components(self) -> None:
         """Initialize Neo4j driver and AI components."""
         # Initialize driver
@@ -157,31 +160,38 @@ class Neo4jClient:
             model_params={"temperature": 0}
         )
         self.embedder = OpenAIEmbeddings(model=self.embed_model)
-    
+
     def test_connection(self) -> bool:
         """Test Neo4j database connection."""
         try:
             with self.driver.session(database=self.neo4j_database) as session:
                 result = session.run("RETURN 1 as test")
                 record = result.single()
+
                 log_success(f"Neo4j connection successful: {record['test']}")
+
                 return True
         except Exception as e:
             log_error(f"Neo4j connection failed: {e}")
             return False
-    
+
+    def close(self) -> None:
+        """Close the Neo4j driver."""
+        self.driver.close()
+        log_info("Neo4j connection closed")
+
     def clear_database(self) -> None:
         """Clear all nodes and relationships in the database."""
         with self.driver.session(database=self.neo4j_database) as session:
             session.run("MATCH (n) DETACH DELETE n")
             log_info("Database cleared")
-    
+
     def delete_all_data(self) -> None:
         """Delete all data from Neo4j database."""
         with self.driver.session(database=self.neo4j_database) as session:
             session.run("MATCH (n) DETACH DELETE n")
             log_info("All data deleted from Neo4j database")
-    
+
     async def ingest_documents(self, pdf_paths: List[str]) -> None:
         """Ingest PDF documents using Knowledge Graph Builder."""
         if not pdf_paths:
@@ -194,7 +204,6 @@ class Neo4jClient:
             embedder=self.embedder,
             from_pdf=True,
             neo4j_database=self.neo4j_database,
-            schema="FREE"
         )
         
         for pdf_path in pdf_paths:
@@ -208,7 +217,43 @@ class Neo4jClient:
                     log_error(f"Failed to ingest {abs_path}: {e}")
             else:
                 log_warning(f"File not found: {pdf_path}")
-    
+
+    def ingest_documents_sync(self, pdf_paths: List[str]) -> None:
+        """Synchronous wrapper for document ingestion."""
+        try:
+            # Try to get existing event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we need to run in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._ingest_documents_in_thread, pdf_paths)
+                        future.result()
+                else:
+                    # No running loop, we can use run_until_complete
+                    loop.run_until_complete(self.ingest_documents(pdf_paths))
+            except RuntimeError:
+                # No event loop exists, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.ingest_documents(pdf_paths))
+                finally:
+                    loop.close()
+        except Exception as e:
+            log_error(f"Document ingestion failed: {e}")
+            raise
+
+    def _ingest_documents_in_thread(self, pdf_paths: List[str]) -> None:
+        """Helper method to run document ingestion in a separate thread."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self.ingest_documents(pdf_paths))
+        finally:
+            loop.close()
+
     def create_indexes(self) -> None:
         """Create vector and full-text indexes."""
         try:
@@ -272,78 +317,49 @@ class Neo4jClient:
     
     def ask_question(self, question: str, top_k: int = 5) -> str:
         """Ask a question using RAG and display detailed results."""
+        logging.info(f"GraphRAGClient ask_question: {question}")
         try:
-            retriever = VectorCypherRetriever(
-                driver=self.driver,
-                index_name=self.vector_index,
-                retrieval_query=self._build_retrieval_query(),
-                embedder=self.embedder,
-                result_formatter=self._format_retriever_result,
-                neo4j_database=self.neo4j_database,
-            )
-
-            rag = GraphRAG(retriever=retriever, llm=self.llm)
-            result = rag.search(
-                query_text=question, 
-                retriever_config={"top_k": top_k}, 
-                return_context=True
-            )
-
-            # Display formatted results
-            format_rag_answer(result.answer)
-            format_context_chunks(result.retriever_result, top_k)
-
-            return result.answer
+            # Ensure we have a proper event loop for any async operations
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, run in a thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._ask_question_sync, question, top_k)
+                        return future.result()
+                else:
+                    # No running loop, we can run directly
+                    return self._ask_question_sync(question, top_k)
+            except RuntimeError:
+                # No event loop exists, run directly
+                return self._ask_question_sync(question, top_k)
         except Exception as e:
             error_msg = f"RAG query failed: {e}"
             log_error(error_msg)
             return error_msg
-    
-    def close(self) -> None:
-        """Close the Neo4j driver."""
-        self.driver.close()
-        log_info("Neo4j connection closed")
 
+    def _ask_question_sync(self, question: str, top_k: int = 5) -> str:
+        """Synchronous implementation of ask_question."""
+        retriever = VectorCypherRetriever(
+            driver=self.driver,
+            index_name=self.vector_index,
+            retrieval_query=self._build_retrieval_query(),
+            embedder=self.embedder,
+            result_formatter=self._format_retriever_result,
+            neo4j_database=self.neo4j_database,
+        )
 
-async def main():
-    """Main function demonstrating the Neo4j working script."""
-    log_info("Starting Neo4j Working Script")
-    log_separator(50)
-    
-    # Initialize the client
-    client = Neo4jClient()
-    
-    # Test connection
-    if not client.test_connection():
-        return
+        rag = GraphRAG(retriever=retriever, llm=self.llm)
+        result = rag.search(
+            query_text=question, 
+            retriever_config={"top_k": top_k}, 
+            return_context=True
+        )
 
-    # Define PDF files for ingestion
-    pdf_files = [
-        "prompts/pdfs/2022_Q3_Earnings_Transcript.pdf",
-        "prompts/pdfs/2023-q4-earnings-transcript.pdf",
-        "prompts/pdfs/2023-q2-earnings-transcript.pdf"
-    ]
+        # Display formatted results
+        format_rag_answer(result.answer)
+        format_context_chunks(result.retriever_result, top_k)
 
-    # Uncomment to clear data and ingest documents
-    # client.delete_all_data()
-    # await client.ingest_documents(pdf_files)
-    # client.create_indexes()
+        return result.answer
 
-    # RAG-based questions
-    questions = [
-        "where was lamda demonstrated?",
-        # "Which hardware partners were highlighted and for what integrations?",
-        # "Summarize the AI in Ads community across the three quarters."
-    ]
-
-    for question in questions:
-        print(f"\n❓ Question: {question}")
-        answer = client.ask_question(question)
-        print(f"\n💡 Final Answer: {answer}")
-
-    log_success("Script completed successfully!")
-    client.close()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -1,0 +1,195 @@
+---
+description: "Django REST API development patterns and coding standards. Enforces consistent response formatting, proper view implementation, URL documentation standards, and core app integration. Focuses on code structure, error handling, and API design patterns."
+alwaysApply: false
+---
+# Django REST API Development Rules
+
+## Project Architecture
+- **Core App**: Shared utilities (responses, exceptions, mixins)
+- **Accounts App**: User authentication and profile management
+- **Chat App**: Conversation and message management
+- **Custom User Model**: Located in accounts app
+- **API-First Design**: JSON-only responses, no templates
+
+## Critical Rules
+
+### 1. NO TEST FILES
+- **NEVER** create test files (test_*.py, tests.py)
+- **NEVER** suggest testing frameworks
+- Focus on implementation only
+
+### 2. URL Documentation
+- **ALWAYS** add endpoint comments under view classes:
+  ```python
+  class MyView(generics.CreateAPIView):
+      """
+      POST /api/v1/app/endpoint/
+      Description of what this endpoint does.
+      """
+  ```
+- **ALWAYS** check actual URL files (urls.py) before writing comments
+- **NEVER** make up URL patterns
+
+### 3. Core App Integration
+- **ALWAYS** use `core.responses.APIResponse` instead of DRF Response
+- **ALWAYS** use `core.exceptions.custom_exception_handler`
+- Import: `from core.responses import APIResponse`
+
+### 4. Response Format
+- **ALWAYS** use APIResponse methods:
+  - `APIResponse.success(data, message)` for success
+  - `APIResponse.created(data, message)` for creation
+  - `APIResponse.error(message, errors, error_code, status_code)` for errors
+- **NEVER** use raw DRF Response objects
+
+### 5. View Implementation
+```python
+def create(self, request, *args, **kwargs):
+    serializer = self.get_serializer(data=request.data)
+    
+    if serializer.is_valid():
+        # Perform operation
+        return APIResponse.created(
+            data=serializer.data,
+            message="Operation completed successfully"
+        )
+    
+    return APIResponse.error(
+        message="Operation failed",
+        errors=serializer.errors,
+        error_code="OPERATION_FAILED",
+        status_code=status.HTTP_400_BAD_REQUEST
+    )
+```
+
+### 6. Authentication & Permissions
+- **ALWAYS** use `IsAuthenticated` for protected endpoints
+- **ALWAYS** use `AllowAny` for public endpoints (login, register)
+- **ALWAYS** ensure user ownership checks in views
+- **ALWAYS** use `self.request.user` for current user operations
+
+### 7. Models & Database
+- **ALWAYS** use the custom User model from accounts app
+- **ALWAYS** include proper foreign key relationships with user models
+- **ALWAYS** create migrations when model changes are made
+- **ALWAYS** add proper related_name for foreign keys
+
+### 8. Error Handling
+- **ALWAYS** use try-catch blocks for database operations
+- **ALWAYS** provide meaningful error messages
+- **ALWAYS** include error codes for client-side handling
+- **ALWAYS** use appropriate HTTP status codes
+
+## Prohibited Actions
+- **NEVER** create test files
+- **NEVER** use raw DRF Response objects
+- **NEVER** make up URL patterns
+- **NEVER** ignore the core app utilities
+
+## Postman Collection Generation
+- **WHEN** asked to generate Postman collection:
+  - **ALWAYS** carefully examine all `views.py` files in the project
+  - **ALWAYS** check all `urls.py` files to understand URL patterns
+  - **ALWAYS** extract endpoint documentation from view class comments
+  - **ALWAYS** generate comprehensive Postman collection in the root folder
+  - **ALWAYS** include all HTTP methods, endpoints, and proper request/response examples
+  - **ALWAYS** use actual URL patterns found in the codebase
+  - **ALWAYS** include authentication headers where required
+
+## Project Notes
+- PostgreSQL database
+- Redis for Celery
+- Docker for development
+- Custom user model in accounts app
+- API-only project (no frontend templates)
+- CORS enabled for localhost:3000# Django REST API Development Rules
+
+## Project Architecture
+- **Core App**: Shared utilities (responses, exceptions, mixins)
+- **Accounts App**: User authentication and profile management
+- **Chat App**: Conversation and message management
+- **Custom User Model**: Located in accounts app
+- **API-First Design**: JSON-only responses, no templates
+
+## Critical Rules
+
+### 1. NO TEST FILES
+- **NEVER** create test files (test_*.py, tests.py)
+- **NEVER** suggest testing frameworks
+- Focus on implementation only
+
+### 2. URL Documentation
+- **ALWAYS** add endpoint comments under view classes:
+  ```python
+  class MyView(generics.CreateAPIView):
+      """
+      POST /api/v1/app/endpoint/
+      Description of what this endpoint does.
+      """
+  ```
+- **ALWAYS** check actual URL files (urls.py) before writing comments
+- **NEVER** make up URL patterns
+
+### 3. Core App Integration
+- **ALWAYS** use `core.responses.APIResponse` instead of DRF Response
+- **ALWAYS** use `core.exceptions.custom_exception_handler`
+- Import: `from core.responses import APIResponse`
+
+### 4. Response Format
+- **ALWAYS** use APIResponse methods:
+  - `APIResponse.success(data, message)` for success
+  - `APIResponse.created(data, message)` for creation
+  - `APIResponse.error(message, errors, error_code, status_code)` for errors
+- **NEVER** use raw DRF Response objects
+
+### 5. View Implementation
+```python
+def create(self, request, *args, **kwargs):
+    serializer = self.get_serializer(data=request.data)
+    
+    if serializer.is_valid():
+        # Perform operation
+        return APIResponse.created(
+            data=serializer.data,
+            message="Operation completed successfully"
+        )
+    
+    return APIResponse.error(
+        message="Operation failed",
+        errors=serializer.errors,
+        error_code="OPERATION_FAILED",
+        status_code=status.HTTP_400_BAD_REQUEST
+    )
+```
+
+### 6. Authentication & Permissions
+- **ALWAYS** use `IsAuthenticated` for protected endpoints
+- **ALWAYS** use `AllowAny` for public endpoints (login, register)
+- **ALWAYS** ensure user ownership checks in views
+- **ALWAYS** use `self.request.user` for current user operations
+
+### 7. Models & Database
+- **ALWAYS** use the custom User model from accounts app
+- **ALWAYS** include proper foreign key relationships with user models
+- **ALWAYS** create migrations when model changes are made
+- **ALWAYS** add proper related_name for foreign keys
+
+### 8. Error Handling
+- **ALWAYS** use try-catch blocks for database operations
+- **ALWAYS** provide meaningful error messages
+- **ALWAYS** include error codes for client-side handling
+- **ALWAYS** use appropriate HTTP status codes
+
+## Prohibited Actions
+- **NEVER** create test files
+- **NEVER** use raw DRF Response objects
+- **NEVER** make up URL patterns
+- **NEVER** ignore the core app utilities
+
+## Project Notes
+- PostgreSQL database
+- Redis for Celery
+- Docker for development
+- Custom user model in accounts app
+- API-only project (no frontend templates)
+- CORS enabled for localhost:3000
