@@ -1,0 +1,8 @@
+Region,2023,2024,Less FX Effect,Constant Currency Revenues,% Change As Reported,% Change Less Hedging Effect,% Change Less FX Effect,% Change Constant Currency Revenues
+United States,146286,170447,0,170447,17%,0%,17%,17%
+EMEA,91038,102127,41,102086,12%,0%,12%,12%
+APAC,51514,56815,-1369,58184,10%,,-3%,13%
+Other Americas,18320,20418,-1608,22026,11%,,-9%,20%
+"Revenues, excluding hedging effect",307158,349807,-2936,352743,14%,,15%,15%
+Hedging gains (losses),236,211,,,,,,
+Total revenues,307394,350018,,352743,14%,0%,15%,15%
