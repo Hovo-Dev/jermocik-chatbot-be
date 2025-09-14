@@ -1,203 +1,344 @@
-# Django API Boilerplate
+# Awesome Jermocik Chatbot
 
-A clean, production-ready Django REST API boilerplate with Docker support and PostgreSQL. Built with `uv` for fast dependency management.
+An intelligent chatbot system that combines Django REST API, RAG (Retrieval-Augmented Generation), and GraphRAG for advanced document processing and conversational AI. The system can process PDF documents, extract structured data, and provide intelligent responses based on the processed content.
 
-## Features
+## 🏗️ Architecture
 
-- **Django 5.1** with Django REST Framework
-- **uv** for fast Python package management
-- **Docker & Docker Compose** for easy deployment
-- **PostgreSQL** database
-- **Custom User Model** with email authentication
-- **API-only** - no templates or HTML rendering
-- **Simple API responses** and error handling
-- **Health check endpoints** for monitoring
-- **CORS support** for frontend integration
+This project consists of several key components:
 
-## Project Structure
+- **Django REST API**: Core web application with user authentication and chat functionality
+- **RAG Engine**: Vector-based document retrieval using pgvector and OpenAI embeddings
+- **GraphRAG**: Graph-based knowledge retrieval using Neo4j
+- **ETL Pipeline**: PDF document processing with VLM (Vision-Language Model) extraction
+- **Multi-Agent System**: Hybrid responder combining multiple data sources
 
-```
-django_api_project/
-├── django_api_project/          # Main project settings
-│   ├── settings.py              # Django settings
-│   ├── urls.py                  # URL configuration
-│   ├── wsgi.py                  # WSGI configuration
-│   ├── asgi.py                  # ASGI configuration
-├── core/                        # Core utilities
-│   ├── exceptions.py            # Exception handling
-│   ├── responses.py             # Simple API responses
-│   ├── views.py                 # Health check views
-│   └── urls.py                  # Core URLs
-├── accounts/                    # User management app
-│   ├── models.py                # Custom User model
-│   ├── serializers.py           # User serializers
-│   ├── views.py                 # Authentication views
-│   ├── urls.py                  # Account URLs
-│   └── admin.py                 # Admin configuration
-├── docker-compose.yml           # Docker services
-├── Dockerfile                   # Docker configuration
-├── pyproject.toml               # uv project configuration
-├── Makefile                     # Development commands
-└── manage.py                    # Django management
-```
+## 🚀 Quick Start with Docker
 
-## Quick Start
+### Prerequisites
 
-### 1. Clone and Setup
+- Docker and Docker Compose
+- OpenAI API key
+- At least 8GB RAM available for Docker
+
+### 1. Environment Setup
 
 ```bash
-# Copy environment file
+# Copy environment template
 cp env.example .env
 
-# Edit .env with your settings
-nano .env
+# Edit .env file with your configuration
+# IMPORTANT: Set your OPENAI_API_KEY
 ```
 
-### 2. Using Docker (Recommended)
+### 2. Start the Application
 
+#### Development Mode
 ```bash
-# Build and start all services
-make dev-setup
+# Start all services in development mode
+make dev
 
 # Or manually:
-make build
-make up
-make migrate
+docker compose -f docker-compose.dev.yml up --build
 ```
 
-### 3. Create Superuser
+#### Production Mode
+```bash
+# Start all services in production mode
+make prod
+
+# Or manually:
+docker compose up --build -d
+```
+
+### 3. Initialize the Database
 
 ```bash
+# Run migrations
+make migrate
+
+# Create a superuser
 make superuser
 ```
 
-### 4. Access the API
+### 4. Access the Services
 
-- **API Base URL**: http://localhost:8000/api/v1/
-- **Admin Panel**: http://localhost:8000/admin/
-- **Health Check**: http://localhost:8000/api/v1/health/
+- **API**: http://localhost:8000
+- **Admin Panel**: http://localhost:8000/admin
+- **pgAdmin**: http://localhost:5050 (admin@admin.com / admin)
+- **Neo4j**: bolt://localhost:7687 (neo4j / password)
 
-## API Endpoints
+## 📋 Available Commands
 
-### Authentication
-- `POST /api/v1/register/` - User registration
-- `POST /api/v1/login/` - User login
-- `POST /api/v1/logout/` - User logout
-- `GET /api/v1/profile/` - Get user profile
-- `PUT /api/v1/profile/` - Update user profile
-
-### Health Checks
-- `GET /api/v1/health/` - Basic health check
-- `GET /api/v1/health/ready/` - Readiness check
-- `GET /api/v1/health/live/` - Liveness check
-
-### Available Tasks
-- `send_welcome_email(user_id)` - Send welcome email to new users
-- `process_user_data(user_id, data)` - Process user data in background
-
-## Development Commands
+The project includes a Makefile with useful commands:
 
 ```bash
-# Start development environment
-make dev-setup
-
-# View logs
-make logs
-
-# Open Django shell
-make shell
-
-# Clean up
-make clean
+make help       # Show all available commands
+make dev        # Start development environment  
+make prod       # Start production environment
+make build      # Build Docker containers
+make down       # Stop all services
+make clean      # Stop and remove volumes
+make migrate    # Run database migrations
+make logs       # Show logs
+make shell      # Open Django shell
+make superuser  # Create superuser
+make db-shell   # Connect to database
 ```
 
-## Local Development (Without Docker)
+## 📊 ETL Pipeline & Document Ingestion
+
+### Running the ETL Pipeline
+
+The ETL pipeline processes PDF documents and extracts structured data using Vision-Language Models:
 
 ```bash
-# Install dependencies with uv
-make install
+# Process PDFs in the etl/input directory
+docker compose exec web uv run python etl/main.py
 
-# Set up environment variables
-cp env.example .env
+# Custom input/output directories
+docker compose exec web uv run python etl/main.py --input /path/to/pdfs --output /path/to/results
+
+# Use different VLM model
+docker compose exec web uv run python etl/main.py --model gpt-4o-mini
+```
+
+### ETL Pipeline Features
+
+- **PDF Processing**: Converts PDF pages to images for VLM analysis
+- **Table Extraction**: Extracts structured tables and saves as CSV
+- **Chart Analysis**: Analyzes charts and figures with key insights
+- **Vector Embeddings**: Creates embeddings for RAG retrieval
+- **Batch Processing**: Handles multiple PDFs efficiently
+
+### Input Data
+
+Place your PDF documents in the `etl/input/` directory. The pipeline will:
+
+1. Process each PDF page-by-page
+2. Extract tables and convert to CSV format
+3. Analyze charts and generate descriptions
+4. Create vector embeddings for retrieved context
+5. Store structured data in PostgreSQL and Neo4j
+
+### RAG Data Ingestion API
+
+After placing PDFs in the `etl/input/` directory, use these API endpoints to ingest data:
+
+#### GraphRAG Ingestion (Recommended)
+```bash
+# Ingest documents into GraphRAG (Neo4j) - No authentication required
+curl -X POST http://localhost:8000/api/v1/rag/documents/ingest/graphrag/ \
+  -H "Content-Type: application/json"
+```
+
+This endpoint will:
+- Test Neo4j connection
+- Process all PDF files from `etl/input/` directory
+- Create graph relationships and indexes
+- Enable graph-based retrieval for chat responses
+
+**Note**: You only need to run GraphRAG ingestion. The structured ETL data ingestion is handled automatically during the pipeline processing.
+
+## 💬 Chat & RAG System
+
+### Chat API Endpoints
+
+```bash
+# Create a new conversation
+POST /api/v1/chat/conversations/
+
+# Send a message
+POST /api/v1/chat/conversations/{id}/messages/
+{
+  "content": "What were the key financial metrics in Q1 2024?"
+}
+
+# Get conversation history
+GET /api/v1/chat/conversations/{id}/messages/
+```
+
+### RAG Configuration
+
+The system uses multiple retrieval methods:
+
+- **Vector RAG**: Semantic search using pgvector and OpenAI embeddings
+- **GraphRAG**: Graph-based retrieval using Neo4j relationships
+- **Table Query**: Direct CSV data querying
+
+Configure RAG settings in your `.env` file:
+
+```env
+RAG_EMBEDDING_MODEL=text-embedding-3-small
+RAG_VECTOR_DIMENSION=1536
+RAG_TOP_K_RESULTS=5
+RAG_SIMILARITY_THRESHOLD=0.6
+```
+
+## 🗄️ Database Configuration
+
+### PostgreSQL with pgvector
+
+The system uses PostgreSQL with the pgvector extension for vector storage:
+
+```sql
+-- Vector similarity search
+SELECT content, 1 - (embedding <=> query_vector) as similarity 
+FROM rag_documentchunk 
+WHERE 1 - (embedding <=> query_vector) > 0.6
+ORDER BY embedding <=> query_vector 
+LIMIT 5;
+```
+
+### Neo4j GraphRAG
+
+Neo4j stores document relationships and enables graph-based retrieval:
+
+- Nodes: Documents, chunks, entities
+- Relationships: Contains, mentions, relates_to
+- Queries: Cypher-based graph traversal
+
+## 🔧 Development
+
+### Local Development Setup
+
+```bash
+# Install dependencies
+uv sync
+
+# Set up pre-commit hooks
+pre-commit install
 
 # Run migrations
-uv run python manage.py migrate
+python manage.py migrate
 
 # Create superuser
-uv run python manage.py createsuperuser
+python manage.py createsuperuser
 
-# Start development server
-make run
+# Run development server
+python manage.py runserver
 ```
 
-## Environment Variables
+### Code Quality
 
-Key environment variables in `.env`:
+```bash
+# Format code
+uv run black .
+uv run isort .
+
+# Lint code
+uv run flake8 .
+```
+
+### Testing
+
+```bash
+# Run tests
+uv run python manage.py test
+
+# Run with coverage
+uv run coverage run --source='.' manage.py test
+uv run coverage report
+```
+
+## 📁 Project Structure
+
+```
+awesome-jermocik-chatbot/
+├── accounts/           # User authentication
+├── chat/              # Chat functionality
+├── core/              # Core utilities
+├── etl/               # ETL pipeline
+│   ├── extractors/    # VLM extractors
+│   ├── processors/    # Pipeline logic
+│   ├── input/         # PDF input directory
+│   └── output/        # Processing results
+├── rag/               # RAG engine
+├── responder/         # Multi-agent responders
+├── django_api_project/ # Django settings
+└── docker files...
+```
+
+## 🔐 Security & Environment Variables
+
+### Required Environment Variables
 
 ```env
 # Django
 SECRET_KEY=your-secret-key-here
-DEBUG=True
+DEBUG=False
 
 # Database
 DB_NAME=django_api_db
-DB_USER=postgres
-DB_PASSWORD=password
-DB_HOST=localhost
-DB_PORT=5432
+DB_USER=postgres  
+DB_PASSWORD=secure-password
 
+# OpenAI
+OPENAI_API_KEY=sk-proj-...
+
+# Neo4j
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=secure-password
 ```
 
-## Adding New Apps
+### Security Best Practices
 
-1. Create a new Django app:
-   ```bash
-   uv run python manage.py startapp your_app_name
-   ```
+- Change default passwords in production
+- Use strong SECRET_KEY
+- Set DEBUG=False in production
+- Regularly update dependencies
+- Monitor API usage and logs
 
-2. Add to `INSTALLED_APPS` in `settings.py`
+## 🚨 Troubleshooting
 
-3. Create URLs and include in main `urls.py`
+### Common Issues
 
-4. Follow the existing patterns for models, serializers, and views
+1. **Docker Memory Issues**: Increase Docker memory allocation to 8GB+
+2. **OpenAI API Errors**: Verify API key and billing status
+3. **Database Connection**: Ensure PostgreSQL health checks pass
+4. **Neo4j Connection**: Check Neo4j service startup logs
 
-## Package Management with uv
-
-This project uses `uv` for fast Python package management:
+### Debugging
 
 ```bash
-# Add a new dependency
-uv add package-name
+# View logs
+make logs
 
-# Add a development dependency
-uv add --dev package-name
+# Connect to web container
+docker compose exec web bash
 
-# Remove a dependency
-uv remove package-name
+# Check database connection
+make db-shell
 
-# Sync dependencies
-uv sync
-
-# Run commands with uv
-uv run python manage.py migrate
-uv run python manage.py test
+# View specific service logs
+docker compose logs web
+docker compose logs db
+docker compose logs neo4j
 ```
 
-## Production Deployment
+### Performance Optimization
 
-1. Set `DEBUG=False` in production
-2. Use a proper secret key
-3. Configure proper database credentials
-4. Set up proper logging
-5. Use a reverse proxy (nginx) in front of the application
-6. Configure SSL/TLS certificates
+- Monitor ETL pipeline processing time
+- Adjust RAG similarity thresholds
+- Consider GPU acceleration for VLM processing
+- Optimize database indexes for vector queries
 
-## Contributing
+## 📈 Monitoring & Analytics
 
-1. Follow Django best practices
-2. Use the existing code style and patterns
-3. Update documentation as needed
+The system includes comprehensive logging:
 
-## License
+- ETL pipeline progress and errors
+- RAG retrieval performance
+- Chat conversation analytics
+- Database query optimization
 
-This project is open source and available under the MIT License.
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

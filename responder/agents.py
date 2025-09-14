@@ -99,4 +99,6 @@ def run_responder(chat_history: str, retrieved_context: str) -> str:
 
     result = asyncio.run(Runner.run(agent, chat_history))
 
+    log_result(result)
+
     return result.final_output
